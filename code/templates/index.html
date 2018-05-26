@@ -151,30 +151,122 @@
             <!-- /.navbar-static-side -->
         </nav>
 
-        <div id="page-wrapper" align="center">
-            {% if user.is_active %}
-                <div class="panel panel-default" style="width: 70%;"  align="left">
-                    <div class="panel-heading">
-                        Cursor: {{ user.cursor }}
-                    </div>
-                    <div class="panel-body">
-                        {{ data|safe }}
-                    </div>
-                    <div class="panel-footer">
-                        {{ description|safe }} 
-                    </div>
-                    <div class="panel-body" align="center">
-                        {{ description|safe }} 
+        {% if user.is_active %}
+            <div id="page-wrapper">
+                <div class="row" align="center">
+                    <div class="panel panel-default" style="width: 70%;"  align="left">
+                        <div class="panel-heading">
+                            <span style='font-weight:bold;'>Labeling</span> (Cursor: {{ user.cursor }})
+                        </div>
+                        <div class="panel-body">
+                            {{ data|safe }}
+                        </div>
+                        <div class="panel-footer">
+                            {{ description|safe }} 
+                        </div>
+                        <div class="panel-body" align="center">
+                            <form role="form", method = "POST">
+                                <input type="submit" class="btn btn-outline btn-success" name="labeling" value="Yes">
+                                <input type="submit" class="btn btn-outline btn-danger" name="labeling" value="No">
+                            </form>
+                        </div>
                     </div>
                 </div>
-            {% else %}
+                <div class="row">
+                    <div class="col-lg-6" align="center">
+                        <div class="panel panel-default" align="left">
+                            <div class="panel-heading">
+                                <span style='font-weight:bold;'>Data Visualization</span>
+                            </div>
+                            <div class="panel-body">
+                                {% if user.cursor < 10 %}
+                                    At least 10 data need for Visulaization.
+                                {% else %}
+                                 show
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6" align="center">
+                        <div class="panel panel-default" align="left">
+                            <div class="panel-heading">
+                                <span style='font-weight:bold;'>Model Visualization</span>
+                            </div>
+                            <div class="panel-body">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-6" align="center">
+                        <div class="panel panel-default" align="left">
+                            <div class="panel-heading">
+                                <span style='font-weight:bold;'>Statistics for Labeling</span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="dataTable_wrapper">
+                                    <table class="table table-striped table-bordered table-hover" id="dataTables-example">
+                                        <thead>
+                                            <tr>
+                                                <th>Relation</th>
+                                                <th>Positive (Yes)</th>
+                                                <th>Negative (No)</th>
+                                                <th>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% set total = {'pos': 0, 'neg': 0} %}
+                                            {% for k, v in statistics.items() %}
+                                                {% if total.update({'pos': v[1]|int + total['pos']|int }) %} {% endif %}
+                                                {% if total.update({'neg': v[0]|int + total['neg']|int }) %} {% endif %}
+                                                <tr>
+                                                    <td>{{k}}</td>
+                                                    <td>{{v[1]}}</td>
+                                                    <td>{{v[0]}}</td>
+                                                    <td>{{v[0] + v[1]}}</td>
+                                                </tr>
+                                            {% endfor %}
+                                            <tr>
+                                                <td><span style='font-weight:bold;'>All Relation</span></td>
+                                                <td><span style='font-weight:bold;'>{{total['pos']}}</span></td>
+                                                <td><span style='font-weight:bold;'>{{total['neg']}}</span></td>
+                                                <td><span style='font-weight:bold;'>{{total['pos'] + total['neg']}}</span></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3" align="center">
+                        <div class="panel panel-default" align="left">
+                            <div class="panel-heading">
+                                <span style='font-weight:bold;'>Training Progress</span>
+                            </div>
+                            <div class="panel-body">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3" align="center">
+                        <div class="panel panel-default" align="left">
+                            <div class="panel-heading">
+                                <span style='font-weight:bold;'>Model Performance</span>
+                            </div>
+                            <div class="panel-body">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div id="page-wrapper" align="center">
                 <div class="panel panel-default" style="width: 70%;">
                     <div class="panel-heading">
-                        <span style='font-weight:bold;'>Please Login Fisrt</span>
+                        <a href="login.html"><i class="fa fa-sign-out fa-fw"></i> Please Login First</a>
                     </div>
                 </div>
-            {% endif %}
-        </div>
+            </div>
+        {% endif %}
         <!-- /.row -->
         <!-- /#page-wrapper -->
 

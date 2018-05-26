@@ -1,10 +1,18 @@
-from manage_user import user
-
 from flask import Flask, render_template, request, redirect, url_for, g, session
 from flask_session import Session
 
+from manage_user import user
+
+import torch
+
+from rnn import *
+from util import Util
+
 import pickle
 import html
+import os
+import signal
+import subprocess
 
 app = Flask(__name__)
 app.secret_key = 'A0Zr98j/3yX R~XHH!jmN]LWX/,?RS'
@@ -23,7 +31,7 @@ description = {
  'employees_or_members'              :['employee or member', 'AANSWERR is/was a employee/member of KKEYWORDD.'],
  'employee_or_member_of'            :['works for', 'KKEYWORDD works/worked for AANSWERR.'],
  'employee_of'                      :['works for', 'KKEYWORDD works/worked for AANSWERR.'],
- 'member_of'                        :['member of', 'KKEYWORDD is/was a member of AANSWERR, though KKWORDD can operate independently of AANSWERR.'],
+ 'member_of'                        :['member of', 'KKEYWORDD is/was a member of AANSWERR, though KKEYWORDD can operate independently of AANSWERR.'],
  'members'                          :['has member', 'KKEYWORDD has/had AANSWERR as a member, though AANSWERR can operate independently of KKEYWORDD.'],
  'holds_shares_in'                   :['holds shares in', 'KKEYWORDD holds/held shares in AANSWERR.'],
  'shareholders'                     :['shareholder', 'AANSWERR is/was a shareholder of KKEYWORDD.'],
@@ -64,18 +72,98 @@ description = {
  'spouse'                           :['spouse', 'AANSWERR is/was the spouse of KKEYWORDD.'],
  'sibling'                          :['sibling of', 'AANSWERR is the sibling of KKEYWORDD.'],
  'other_family'                     :['other family', 'KKEYWORDD and AANSWERR are otherwise family.'],
- 'age'                              :['age', 'KKEYWORDD is AANSWER years old.'],
+ 'age'                              :['age', 'KKEYWORDD is AANSWERR years old.'],
  'alternate_names'                  :['altername name', 'AANSWERR is an alternate name of KKEYWORDD.'],
  'website'                          :['website', 'A website address of KKEYWORDD is AANSWERR.'],
  'cause_of_death'                    :['cause of death', 'AANSWERR was an explicit cause of death for KKEYWORDD.'],
  'political_religious_affiliation'  :['political/religious affiliation', 'KKEYWORDD is politically or religiously affliated with AANSWERR.'],
  'religion'                         :['religion', 'KKEYWORDD has religiously belonged to AANSWERR.'],
  'origin'                           :['nationality/ethnicity', 'AANSWERR is a nationality or ethnicity of KKEYWORDD.'],
- 'charges'                          :['charges', 'KKEYWORDD is/was convicted of AANSWER.'],
+ 'charges'                          :['charges', 'KKEYWORDD is/was convicted of AANSWERR.'],
+ 'no_relation'                          :['no relation', 'There is no relation between KKEYWORDD and AANSWERR,'],
 }
+
+MODEL_PATH = "../user/%s/model/"
+
+MAX_BATCH_SIZE = 500
+
+USE_GPU = False
+
+with open("./relation_list.txt") as f:
+    tmp = f.read().split("\n")
+
+    if tmp[-1] == "":
+        tmp = tmp[:-1]
+
+    relation_list = []
+
+    for i in tmp:
+        if i[0] != "#":
+            relation_list.append(i)
+
+    RELATION_DICT = {relation:i for i, relation in enumerate(relation_list)}
 
 with open("../data/ANGELIS_POSITION.pkl","rb") as f:
     data = pickle.load(f)
+
+sentence = []
+entity = []
+entity_position = []
+filler = []
+filler_position = []
+relation = []
+
+for sent, ent, entity_begin, entity_end, fil, filler_begin, filler_end, rel, confidence in data:
+    if (rel != "no_relation") & (rel not in RELATION_DICT):
+        continue
+    sentence.append(html.unescape(sent.lower()))
+
+    splited_sent = html.unescape(sent.lower()).split(" ")
+
+    entity.append(ent.strip())
+    filler.append(fil.strip())
+
+    tmp_ent_pos = []
+    for i in range(len(splited_sent)):
+        if i < entity_begin:
+            tmp_ent_pos.append(i - entity_begin)
+        elif i < (entity_end - 1):
+            tmp_ent_pos.append(0)
+        else:
+            tmp_ent_pos.append(i - (entity_end - 1))
+    entity_position.append(tmp_ent_pos)
+
+    tmp_fil_pos = []
+    for i in range(len(splited_sent)):
+        if i < filler_begin:
+            tmp_fil_pos.append(i - filler_begin)
+        elif i < (filler_end - 1):
+            tmp_fil_pos.append(0)
+        else:
+            tmp_fil_pos.append(i - (filler_end - 1))
+    filler_position.append(tmp_fil_pos)
+
+    relation.append(rel)
+
+print("# of data:", len(sentence))
+
+VALID_START = int(0.7 * len(sentence))
+
+train_sentence = sentence[:VALID_START]
+train_entity = entity[:VALID_START]
+train_entity_position = entity_position[:VALID_START]
+train_filler = filler[:VALID_START]
+train_filler_position = filler_position[:VALID_START]
+train_relation = relation[:VALID_START]
+
+valid_sentence = sentence[VALID_START:]
+valid_entity = entity[VALID_START:]
+valid_entity_position = entity_position[VALID_START:]
+valid_filler = filler[VALID_START:]
+valid_filler_position = filler_position[VALID_START:]
+valid_relation = relation[VALID_START:]
+
+util = Util(train_sentence, "./relation_list.txt", 3, 10)
 
 def get_user():
     if "current_user" not in session:
@@ -85,19 +173,53 @@ def get_user():
     print(current_user.name)
     return current_user
 
-def data_generate(data, cursor):
-    sent, e1, e1_start, e1_end, e2, e2_start, e2_end, rel, conf = data[cursor]
-    return sent.strip(), description[rel[4:]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>"%e1.strip()).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>"%e2.strip())
-
 @app.route('/')
 @app.route('/index.html')
 def index():
     current_user = get_user()
     if current_user.is_active == False:
-        return render_template("index.html", user = current_user, data = None, description = None)
+        return render_template("index.html", user = current_user)
     else:
-        instance_data, instance_description = data_generate(data, current_user.cursor)
-        return render_template("index.html", user = current_user, data = instance_data, description = instance_description)
+        instance_data = train_sentence[current_user.cursor]
+        if relation[current_user.cursor] == "no_relation":
+            instance_description =  description[train_relation[current_user.cursor]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+        else:
+            instance_description =  description[train_relation[current_user.cursor][4:]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+        return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(util))
+
+@app.route('/', methods = ["POST"])
+@app.route('/index.html', methods = ["POST"])
+def index_post():
+    current_user = get_user()
+
+    instance_data = train_sentence[current_user.cursor]
+    instance_e1 = train_entity[current_user.cursor]
+    instance_e2 = train_filler[current_user.cursor]
+    instance_e1_position = train_entity_position[current_user.cursor]
+    instance_e2_position = train_filler_position[current_user.cursor]
+    instance_relation = train_relation[current_user.cursor]
+    if relation[current_user.cursor] == "no_relation":
+        instance_description =  description[train_relation[current_user.cursor]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+    else:
+        instance_description =  description[train_relation[current_user.cursor][4:]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+
+    if (request.form['labeling'] == "Yes")|(request.form['labeling'] == "No"):
+        if request.form['labeling'] == "Yes":
+            label = 1
+        else:
+            label = 0
+        current_user.update(instance_data, instance_e1, instance_e2, instance_e1_position, instance_e2_position, instance_relation, label)
+
+        instance_data = train_sentence[current_user.cursor]
+        if relation[current_user.cursor] == "no_relation":
+            instance_description =  description[train_relation[current_user.cursor]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+        else:
+            instance_description =  description[train_relation[current_user.cursor][4:]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+
+        if (current_user.cursor > 10) == 0:
+            pass
+
+    return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(util), data_vis = None)
 
 @app.route('/login.html')
 def login():
@@ -114,30 +236,35 @@ def login_post():
     if check == 1:
         #return index(current_user)
         session['current_user'] = current_user
+        
+        if os.path.exists(MODEL_PATH % name) is False:
+            os.mkdir(MODEL_PATH % name)
+
+            word_emb = Word_Embedding(150, util, USE_GPU)
+            entity_position_emb = Position_Embedding(25, util, USE_GPU)
+            filler_position_emb = Position_Embedding(25, util, USE_GPU)
+            sentence_emb = Sentence_Embedding(word_emb, entity_position_emb, filler_position_emb, util, USE_GPU)
+
+            classifier = Classifier(sentence_emb, 200, util, USE_GPU)
+            
+            classifier.save(name)
+        else:
+            if os.path.exists("%s/latest" % (MODEL_PATH % name)) is False:
+                word_emb = Word_Embedding(150, util, USE_GPU)
+                entity_position_emb = Position_Embedding(25, util, USE_GPU)
+                filler_position_emb = Position_Embedding(25, util, USE_GPU)
+                sentence_emb = Sentence_Embedding(word_emb, entity_position_emb, filler_position_emb, util, USE_GPU)
+
+                classifier = Classifier(sentence_emb, 200, util, USE_GPU)
+
+                classifier.save(name)
+        
         return redirect(url_for("index"))
 
 @app.route('/logout.html')
 def logout():
     session.pop('current_user', None)
     return redirect(url_for("index"))
-"""
-@app.route('/labeling.html')
-def labeling():
-    return render_template("labeling.html", user = user())
-"""
-
-"""
-@app.route('/pages')
-def pages_index():
-    return render_template("pages/index.html")
-"""
-
-"""
-@app.route('/<pagename>')
-def admin(pagename):
-    print(pagename)
-    return render_template("pages/" + pagename)
-"""
 
 if __name__ == '__main__':
 
