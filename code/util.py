@@ -79,7 +79,7 @@ class Util():
         return relation_index
 
     def relation_to_index(self, relation):
-        return self.relation_dict[relation]
+        return self.relation_dict["per:" + relation]
 
     def batch_relation_to_onehot(self, relation):
         with mp.Pool() as p:
@@ -89,8 +89,8 @@ class Util():
 
     def relation_to_onehot(self, relation):
         tmp = [0] * len(self.relation_dict.keys())
-        if relation in self.relation_dict.keys():
-            tmp[self.relation_dict[relation]] = 1
+        if "per:" + relation in self.relation_dict.keys():
+            tmp[self.relation_dict["per:" + relation]] = 1
 
             return tmp
         

@@ -32,6 +32,15 @@
         <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
         <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
     <![endif]-->
+    <link
+        href="http://cdn.pydata.org/bokeh/release/bokeh-0.12.16.min.css"
+        rel="stylesheet" type="text/css">
+    <link
+        href="http://cdn.pydata.org/bokeh/release/bokeh-widgets-0.12.16.min.css"
+        rel="stylesheet" type="text/css">
+
+    <script src="http://cdn.pydata.org/bokeh/release/bokeh-0.12.16.min.js"></script>
+    <script src="http://cdn.pydata.org/bokeh/release/bokeh-widgets-0.12.16.min.js"></script>
 
 </head>
 
@@ -117,7 +126,7 @@
                             <li><a href="logout.html"><i class="fa fa-sign-out fa-fw"></i> Logout</a>
                         {% else %}
                             <li><a href="login.html"><i class="fa fa-sign-out fa-fw"></i> Login</a>
-                            <li><a href="register.html"><i class="fa fa-sign-out fa-fw"></i> registration</a>
+                            <li><a href="register.html"><i class="fa fa-sign-out fa-fw"></i> Registration</a>
                         {% endif %}
                         </li>
                     </ul>
@@ -238,20 +247,32 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-lg-3" align="center">
+                    <div class="col-lg-6" align="center">
                         <div class="panel panel-default" align="left">
                             <div class="panel-heading">
                                 <span style='font-weight:bold;'>Training Progress</span>
                             </div>
                             <div class="panel-body">
+                                {% if user.cursor < 10 %}
+                                    At least 10 data need for Model.
+                                {% else %}
+                                    {{ loss_script|safe }}
+                                    {{ loss_div|safe }}
+                                {% endif %}
                             </div>
                         </div>
                     </div>
-                    <div class="col-lg-3" align="center">
+                    <div class="col-lg-6" align="center">
                         <div class="panel panel-default" align="left">
                             <div class="panel-heading">
                                 <span style='font-weight:bold;'>Model Performance</span>
                             </div>
+                                {% if user.cursor < 10 %}
+                                    At least 10 data need for Model.
+                                {% else %}
+                                    {{ loss_script|safe }}
+                                    {{ loss_div|safe }}
+                                {% endif %}
                             <div class="panel-body">
                             </div>
                         </div>

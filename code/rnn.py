@@ -3,7 +3,9 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 
+import pickle
 import numpy as np
+from sklearn.manifold import TSNE
 
 class Word_Embedding(nn.Module):
     def __init__(self, embedding_dim, util, use_gpu):
@@ -113,7 +115,7 @@ class Classifier(nn.Module):
         self.encoder_forward = nn.LSTM(self.embedding_dim, hidden_size, 1, batch_first = True)
         self.encoder_backward = nn.LSTM(self.embedding_dim, hidden_size, 1, batch_first = True)
 
-        self.fc = nn.Linear(hidden_size * 2, len(util.relation_dict.keys()) + 1)
+        self.fc = nn.Linear(hidden_size * 2, len(util.relation_dict.keys()))
 
         if use_gpu == True:
             self.cuda()
@@ -146,7 +148,7 @@ class Classifier(nn.Module):
 
             encoder_output = torch.bmm(encoder_output.transpose(1,2), sentence_len).squeeze(2)
 
-            output = nn.Sigmoid()(self.fc(encoder_output))
+            output = nn.Softmax()(self.fc(encoder_output))
 
             if self.use_gpu == True:
                 output_list += output.cpu().data.numpy().tolist()
@@ -155,9 +157,8 @@ class Classifier(nn.Module):
 
         return output_list
 
-    def train(self, sentence, entity_position, filler_position, relation,
-            valid_sentence, valid_entity_position, valid_filler_position, valid_relation,
-            batch_size, epoch, learning_rate, max_len = None):
+    def train(self, sentence, entity_position, filler_position, relation, batch_size, epoch, learning_rate, username,
+            valid_sentence = None, valid_entity_position = None, valid_filler_position = None, valid_relation = None, max_len = None):
         optimizer = torch.optim.SGD(self.parameters(), lr = learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', factor = 0.5, verbose = True)
 
@@ -168,22 +169,26 @@ class Classifier(nn.Module):
                 if max_len is None:
                     batch_max_len = max(sentence_len)
 
-                relation_onehot = self.util.batch_relation_to_onehot(batch_relation)
-                no_relation_onehot = self.util.batch_no_relation_to_onehot(batch_relation)
+                #relation_onehot = self.util.batch_relation_to_onehot(batch_relation)
+                #no_relation_onehot = self.util.batch_no_relation_to_onehot(batch_relation)
+                relation_index = self.util.batch_relation_to_index(batch_relation)
 
                 sentence_len = Variable(torch.FloatTensor(self.util.length_to_onehot(sentence_len, batch_max_len))).unsqueeze(2)
-                relation_onehot = Variable(torch.FloatTensor(relation_onehot))
-                no_relation_onehot = Variable(torch.FloatTensor(no_relation_onehot))
+                #relation_onehot = Variable(torch.FloatTensor(relation_onehot))
+                #no_relation_onehot = Variable(torch.FloatTensor(no_relation_onehot))
+                relation_index = Variable(torch.LongTensor(relation_index))
 
                 tmp_batch_size = sentence_len.size()[0] 
 
-                margin = Variable(torch.FloatTensor([[-0.7, -0.3]] * tmp_batch_size)) 
+                #margin = Variable(torch.FloatTensor([[-0.7, -0.3]] * tmp_batch_size)) 
 
                 if self.use_gpu == True:
                     sentence_len = sentence_len.cuda()
-                    relation_onehot = relation_onehot.cuda()
-                    no_relation_onehot = no_relation_onehot.cuda()
-                    margin = margin.cuda()
+                    #relation_onehot = relation_onehot.cuda()
+                    #no_relation_onehot = no_relation_onehot.cuda()
+                    relation_index = relation_index.cuda()
+
+                    #margin = margin.cuda()
 
                 sentence_embedding, reversed_sentence_embedding = self.embedding(batch_sentence, batch_entity_position, batch_filler_position)
                 
@@ -197,13 +202,14 @@ class Classifier(nn.Module):
 
                 encoder_output = torch.bmm(encoder_output.transpose(1,2), sentence_len).squeeze(2)
 
-                output = nn.Sigmoid()(self.fc(encoder_output))
+                output = nn.Softmax()(self.fc(encoder_output))
             
-                output = output[:, :-1] * relation_onehot
-                output = torch.max(output, 1)[0]
-                output = output.unsqueeze(1)
+                #output = output[:, :-1] * relation_onehot
+                #output = torch.max(output, 1)[0]
+                #output = output.unsqueeze(1)
 
-                loss = torch.sum(torch.clamp(output.expand_as(no_relation_onehot) * no_relation_onehot + margin * no_relation_onehot, min = 0.0))
+                #loss = torch.sum(torch.clamp(output.expand_as(no_relation_onehot) * no_relation_onehot + margin * no_relation_onehot, min = 0.0))
+                loss = torch.nn.functional.cross_entropy(output, relation_index)
                 loss /= tmp_batch_size
 
                 loss.backward()
@@ -211,7 +217,7 @@ class Classifier(nn.Module):
                 optimizer.zero_grad()
 
                 #print("Loss: %f" % loss.cpu().data.numpy()[0])
-                with open("../user/%s/model/loss", "a") as f:
+                with open("../user/%s/model/loss" % username, "a") as f:
                     f.write(str(loss.cpu().data.numpy()[0]))
                     f.write("\n")
 
@@ -255,12 +261,52 @@ class Classifier(nn.Module):
             return Variable(torch.zeros(1, batch_size, self.hidden_size)), Variable(torch.zeros(1, batch_size, self.hidden_size))
 
     def save(self, username, epoch = 0):
-        torch.save(self, "../user/%s/model/latest" % username) 
+        torch.save(self, "../user/%s/model/%d_%d_%d_latest" % (username, self.embedding.word_embedding.embedding_dim, self.embedding.entity_position_embedding.embedding_dim, self.hidden_size))
         if epoch != 0:
             torch.save(self, "../user/%s/model/%d" % (username, epoch))
 
-    def visualize_data(self, data):
-        pass
+    def visualize_data(self, sentence, entity_position, filler_position, relation, batch_size, username):
+        data_list = []
+        for batch_sentence, batch_entity_position, batch_filler_position, batch_relation in self.util.batch_train_discriminator(sentence, entity_position, filler_position, relation, batch_size, True):
+            sentence_len = list(map(len, self.util.batch_sentence_to_index(batch_sentence)))
 
+            batch_max_len = max(sentence_len)
 
+            #relation_onehot = self.util.batch_relation_to_onehot(batch_relation)
+            #no_relation_onehot = self.util.batch_no_relation_to_onehot(batch_relation)
+            relation_index = self.util.batch_relation_to_index(batch_relation)
 
+            sentence_len = Variable(torch.FloatTensor(self.util.length_to_onehot(sentence_len, batch_max_len))).unsqueeze(2)
+            #relation_onehot = Variable(torch.FloatTensor(relation_onehot))
+            #no_relation_onehot = Variable(torch.FloatTensor(no_relation_onehot))
+            relation_index = Variable(torch.LongTensor(relation_index))
+
+            tmp_batch_size = sentence_len.size()[0]
+
+            #margin = Variable(torch.FloatTensor([[-0.7, -0.3]] * tmp_batch_size)) 
+
+            if self.use_gpu == True:
+                sentence_len = sentence_len.cuda()
+                #relation_onehot = relation_onehot.cuda()
+                #no_relation_onehot = no_relation_onehot.cuda()
+                relation_index = relation_index.cuda()
+
+                #margin = margin.cuda()
+
+            sentence_embedding, reversed_sentence_embedding = self.embedding(batch_sentence, batch_entity_position, batch_filler_position)
+           
+            encoder_hidden_forward, encoder_cell_forward = self.init_encoder(tmp_batch_size)
+            encoder_hidden_backward, encoder_cell_backward = self.init_encoder(tmp_batch_size)
+           
+            encoder_output_forward, (encoder_hidden_forward, encoder_cell_forward) = self.encoder_forward(sentence_embedding, (encoder_hidden_forward, encoder_cell_forward))
+            encoder_output_backward, (encoder_hidden_backward, encoder_cell_backward) = self.encoder_backward(reversed_sentence_embedding, (encoder_hidden_backward, encoder_cell_backward))
+
+            encoder_output = torch.cat([encoder_output_forward, encoder_output_backward], 2)
+
+            encoder_output = torch.bmm(encoder_output.transpose(1,2), sentence_len).squeeze(2)
+            
+            data_list += encoder_output.data.numpy().tolist()
+
+        data_list = TSNE(n_components=2).fit_transform(data_list)
+        with open("../user/%s/figure/data_vis/latest.pkl" % username, "wb") as f:
+            pickle.dump(data_list, f)

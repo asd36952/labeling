@@ -1,18 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, g, session
 from flask_session import Session
+from bokeh.embed import components
 
 from manage_user import user
-
-import torch
-
-from rnn import *
-from util import Util
 
 import pickle
 import html
 import os
-import signal
-import subprocess
 
 app = Flask(__name__)
 app.secret_key = 'A0Zr98j/3yX R~XHH!jmN]LWX/,?RS'
@@ -68,7 +62,7 @@ description = {
  'country_of_headquarters'          :['headquartered at', 'KKEYWORDD is/was headquartered at AANSWERR.'],
  'subsidiaries'                     :['subsidary of', 'KKEYWORDD is/was a subsidiary of AANSWERR and KKEYWORDD can not exist without AANSWERR.'],
  'org:parents'                       :['parent of', 'KKEYWORDD owns/owned AANSWERR and AANSWERR can not exist without KKEYWORDD'],
- 'per:parents'                       :['parent of', 'AANSWERR is the parent of KKEYWORDD.'],
+ 'parents'                       :['parent of', 'AANSWERR is the parent of KKEYWORDD.'],
  'spouse'                           :['spouse', 'AANSWERR is/was the spouse of KKEYWORDD.'],
  'sibling'                          :['sibling of', 'AANSWERR is the sibling of KKEYWORDD.'],
  'other_family'                     :['other family', 'KKEYWORDD and AANSWERR are otherwise family.'],
@@ -83,12 +77,6 @@ description = {
  'no_relation'                          :['no relation', 'There is no relation between KKEYWORDD and AANSWERR,'],
 }
 
-MODEL_PATH = "../user/%s/model/"
-
-MAX_BATCH_SIZE = 500
-
-USE_GPU = False
-
 with open("./relation_list.txt") as f:
     tmp = f.read().split("\n")
 
@@ -102,68 +90,6 @@ with open("./relation_list.txt") as f:
             relation_list.append(i)
 
     RELATION_DICT = {relation:i for i, relation in enumerate(relation_list)}
-
-with open("../data/ANGELIS_POSITION.pkl","rb") as f:
-    data = pickle.load(f)
-
-sentence = []
-entity = []
-entity_position = []
-filler = []
-filler_position = []
-relation = []
-
-for sent, ent, entity_begin, entity_end, fil, filler_begin, filler_end, rel, confidence in data:
-    if (rel != "no_relation") & (rel not in RELATION_DICT):
-        continue
-    sentence.append(html.unescape(sent.lower()))
-
-    splited_sent = html.unescape(sent.lower()).split(" ")
-
-    entity.append(ent.strip())
-    filler.append(fil.strip())
-
-    tmp_ent_pos = []
-    for i in range(len(splited_sent)):
-        if i < entity_begin:
-            tmp_ent_pos.append(i - entity_begin)
-        elif i < (entity_end - 1):
-            tmp_ent_pos.append(0)
-        else:
-            tmp_ent_pos.append(i - (entity_end - 1))
-    entity_position.append(tmp_ent_pos)
-
-    tmp_fil_pos = []
-    for i in range(len(splited_sent)):
-        if i < filler_begin:
-            tmp_fil_pos.append(i - filler_begin)
-        elif i < (filler_end - 1):
-            tmp_fil_pos.append(0)
-        else:
-            tmp_fil_pos.append(i - (filler_end - 1))
-    filler_position.append(tmp_fil_pos)
-
-    relation.append(rel)
-
-print("# of data:", len(sentence))
-
-VALID_START = int(0.7 * len(sentence))
-
-train_sentence = sentence[:VALID_START]
-train_entity = entity[:VALID_START]
-train_entity_position = entity_position[:VALID_START]
-train_filler = filler[:VALID_START]
-train_filler_position = filler_position[:VALID_START]
-train_relation = relation[:VALID_START]
-
-valid_sentence = sentence[VALID_START:]
-valid_entity = entity[VALID_START:]
-valid_entity_position = entity_position[VALID_START:]
-valid_filler = filler[VALID_START:]
-valid_filler_position = filler_position[VALID_START:]
-valid_relation = relation[VALID_START:]
-
-util = Util(train_sentence, "./relation_list.txt", 3, 10)
 
 def get_user():
     if "current_user" not in session:
@@ -180,46 +106,45 @@ def index():
     if current_user.is_active == False:
         return render_template("index.html", user = current_user)
     else:
-        instance_data = train_sentence[current_user.cursor]
-        if relation[current_user.cursor] == "no_relation":
-            instance_description =  description[train_relation[current_user.cursor]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
-        else:
-            instance_description =  description[train_relation[current_user.cursor][4:]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
-        return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(util))
+        instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
+        if instance_relation != "no_relation":
+            instance_relation = instance_relation[4:]
+        instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
+        return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(), loss_script = None, loss_div = None)
 
 @app.route('/', methods = ["POST"])
 @app.route('/index.html', methods = ["POST"])
 def index_post():
     current_user = get_user()
 
-    instance_data = train_sentence[current_user.cursor]
-    instance_e1 = train_entity[current_user.cursor]
-    instance_e2 = train_filler[current_user.cursor]
-    instance_e1_position = train_entity_position[current_user.cursor]
-    instance_e2_position = train_filler_position[current_user.cursor]
-    instance_relation = train_relation[current_user.cursor]
-    if relation[current_user.cursor] == "no_relation":
-        instance_description =  description[train_relation[current_user.cursor]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
-    else:
-        instance_description =  description[train_relation[current_user.cursor][4:]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+    instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
+    if instance_relation != "no_relation":
+        instance_relation = instance_relation[4:]
+    instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
+
+    loss_script = None
+    loss_div = None
 
     if (request.form['labeling'] == "Yes")|(request.form['labeling'] == "No"):
         if request.form['labeling'] == "Yes":
             label = 1
         else:
             label = 0
-        current_user.update(instance_data, instance_e1, instance_e2, instance_e1_position, instance_e2_position, instance_relation, label)
+        current_user.update(instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, label)
 
-        instance_data = train_sentence[current_user.cursor]
-        if relation[current_user.cursor] == "no_relation":
-            instance_description =  description[train_relation[current_user.cursor]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
-        else:
-            instance_description =  description[train_relation[current_user.cursor][4:]][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % train_entity[current_user.cursor]).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % train_filler[current_user.cursor])
+        instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
+        if instance_relation != "no_relation":
+            instance_relation = instance_relation[4:]
+        instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
-        if (current_user.cursor > 10) == 0:
-            pass
+        if current_user.cursor > 10:
+            #if current_user.pid == -1:
+            #    current_user.run_classifier()
 
-    return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(util), data_vis = None)
+            loss_graph = current_user.loss_graph()
+            loss_script, loss_div = components(loss_graph)
+
+    return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(), data_vis = None, loss_script = loss_script, loss_div = loss_div)
 
 @app.route('/login.html')
 def login():
@@ -237,29 +162,27 @@ def login_post():
         #return index(current_user)
         session['current_user'] = current_user
         
-        if os.path.exists(MODEL_PATH % name) is False:
-            os.mkdir(MODEL_PATH % name)
-
-            word_emb = Word_Embedding(150, util, USE_GPU)
-            entity_position_emb = Position_Embedding(25, util, USE_GPU)
-            filler_position_emb = Position_Embedding(25, util, USE_GPU)
-            sentence_emb = Sentence_Embedding(word_emb, entity_position_emb, filler_position_emb, util, USE_GPU)
-
-            classifier = Classifier(sentence_emb, 200, util, USE_GPU)
-            
-            classifier.save(name)
-        else:
-            if os.path.exists("%s/latest" % (MODEL_PATH % name)) is False:
-                word_emb = Word_Embedding(150, util, USE_GPU)
-                entity_position_emb = Position_Embedding(25, util, USE_GPU)
-                filler_position_emb = Position_Embedding(25, util, USE_GPU)
-                sentence_emb = Sentence_Embedding(word_emb, entity_position_emb, filler_position_emb, util, USE_GPU)
-
-                classifier = Classifier(sentence_emb, 200, util, USE_GPU)
-
-                classifier.save(name)
-        
         return redirect(url_for("index"))
+
+    else:
+        return render_template("login.html", message = message)
+
+@app.route('/register.html')
+def register():
+    return render_template("register.html")
+
+@app.route('/register.html', methods = ["POST"])
+def register_post():
+    name =  request.form['name']
+    password = request.form['password']
+    current_user = user()
+    check, message = current_user.register(name, password)
+    print(message)
+
+    if check == 1:
+        return redirect(url_for("index"))
+    else:
+        return render_template("register.html", message = message)
 
 @app.route('/logout.html')
 def logout():
