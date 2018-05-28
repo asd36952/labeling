@@ -267,13 +267,13 @@
                             <div class="panel-heading">
                                 <span style='font-weight:bold;'>Model Performance</span>
                             </div>
+                            <div class="panel-body">
                                 {% if user.cursor < 10 %}
                                     At least 10 data need for Model.
                                 {% else %}
                                     {{ loss_script|safe }}
                                     {{ loss_div|safe }}
                                 {% endif %}
-                            <div class="panel-body">
                             </div>
                         </div>
                     </div>

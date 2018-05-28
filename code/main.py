@@ -110,7 +110,17 @@ def index():
         if instance_relation != "no_relation":
             instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
-        return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(), loss_script = None, loss_div = None)
+
+        if current_user.cursor > 10:
+            #if current_user.pid == -1:
+            #    current_user.run_classifier()
+
+            loss_graph = current_user.loss_graph()
+            loss_script, loss_div = components(loss_graph)
+        else:
+            loss_script, loss_div = None, None
+
+        return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(), loss_script = loss_script, loss_div = loss_div)
 
 @app.route('/', methods = ["POST"])
 @app.route('/index.html', methods = ["POST"])
@@ -121,9 +131,6 @@ def index_post():
     if instance_relation != "no_relation":
         instance_relation = instance_relation[4:]
     instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
-
-    loss_script = None
-    loss_div = None
 
     if (request.form['labeling'] == "Yes")|(request.form['labeling'] == "No"):
         if request.form['labeling'] == "Yes":
@@ -137,12 +144,14 @@ def index_post():
             instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
-        if current_user.cursor > 10:
-            #if current_user.pid == -1:
-            #    current_user.run_classifier()
+    if current_user.cursor > 10:
+        #if current_user.pid == -1:
+        #    current_user.run_classifier()
 
-            loss_graph = current_user.loss_graph()
-            loss_script, loss_div = components(loss_graph)
+        loss_graph = current_user.loss_graph()
+        loss_script, loss_div = components(loss_graph)
+    else:
+        loss_script, loss_div = None, None
 
     return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(), data_vis = None, loss_script = loss_script, loss_div = loss_div)
 
@@ -191,5 +200,5 @@ def logout():
 
 if __name__ == '__main__':
 
-    app.debug = True
+    #app.debug = True
     app.run(host='0.0.0.0')
