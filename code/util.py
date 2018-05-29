@@ -134,7 +134,7 @@ class Util():
                 
         return tmp
 
-    def batch_forward_discriminator(self, sentence, entity_position, filler_position, batch_size):
+    def batch_forward(self, sentence, entity_position, filler_position, batch_size):
         tmp = list(range(len(sentence)))
 
         sentence = np.array(sentence)
@@ -144,7 +144,7 @@ class Util():
         for i in range(0, len(sentence), batch_size):
             yield sentence[tmp[i:i + batch_size]].tolist(), entity_position[tmp[i:i + batch_size]].tolist(), filler_position[tmp[i:i + batch_size]].tolist()
             
-    def batch_train_discriminator(self, sentence, entity_position, filler_position, relation, batch_size, random):
+    def batch_train(self, sentence, entity_position, filler_position, relation, batch_size, random):
         tmp = list(range(len(sentence)))
             
         if random == True:
@@ -157,29 +157,6 @@ class Util():
         
         for i in range(0, len(sentence), batch_size):
             yield sentence[tmp[i:i + batch_size]].tolist(), entity_position[tmp[i:i + batch_size]].tolist(), filler_position[tmp[i:i + batch_size]].tolist(), relation[tmp[i:i + batch_size]].tolist()
-
-    def batch_forward_generator(self, sentence, entity_position, filler_position, relation, batch_size):
-        tmp = list(range(len(sentence)))
-
-        sentence = np.array(sentence)
-        entity_position = np.array(entity_position)
-        filler_position = np.array(filler_position)
-        relation = np.array(relation)
-
-        for i in range(0, len(sentence), batch_size):
-            yield sentence[tmp[i:i + batch_size]].tolist(), entity_position[tmp[i:i + batch_size]].tolist(), filler_position[tmp[i:i + batch_size]].tolist(), relation[tmp[i:i + batch_size]].tolist()
-
-    def batch_train_generator(self, article, title, batch_size, random):
-        tmp = list(range(len(article)))
-            
-        if random == True:
-            np.random.shuffle(tmp)
-        
-        article = np.array(article)
-        title = np.array(title)
-        
-        for i in range(0, len(article), batch_size):
-            yield article[tmp[i:i + batch_size]].tolist(), title[tmp[i:i + batch_size]].tolist()
          
     def length_to_onehot(self, length, max_len):
         tmp_list = []
@@ -205,7 +182,6 @@ class Util():
             
         return sentence
     
-    
     def padding_onehot(self, onehot, max_len = None):
         if max_len is None:
             max_len = max([len(i) for i in onehot])
@@ -218,7 +194,6 @@ class Util():
                 tmp.append(i + ([[0] * len(self.vocab.keys())] * (max_len - len(i))))
                 
         return tmp
-        
     
     def sentence_to_onehot(self, sentence):
         tmp = [0] * len(self.vocab.keys())

@@ -63,6 +63,7 @@ if __name__ == "__main__":
    
         # 고치자 로스 부분 수저앻야함
         classifier.train(sentence, entity_position, filler_position, relation, args.batch_size, epoch = 1, learning_rate = args.learning_rate, username = args.username)
+        continue
 
         sentence = []
         entity = []
