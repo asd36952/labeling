@@ -255,13 +255,14 @@ class user():
 
         return p
 
-    def visualize_model(self):
-        p = figure(plot_width = 600, plot_height = 500)
+    def visualize_model(self, cursor):
         try:
-            with open("../user/%s/figure/modl_vis/vis.pkl" % self.name, "rb") as f:
-                model_vis = pickle.load(f)
+            with open("../user/%s/figure/model_vis/att.pkl" % self.name, "rb") as f:
+                att_list = pickle.load(f)
         except FileNotFoundError:
-            return p
+            return []
+
+        return att_list[cursor]
 
     def loss_graph(self):
         p = figure(plot_width = 600, plot_height = 200, x_axis_label = 'Epoch', y_axis_label = 'Loss')

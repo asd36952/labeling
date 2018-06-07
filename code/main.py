@@ -65,6 +65,7 @@ description = {
  'parents'                       :['parent of', 'AANSWERR is the parent of KKEYWORDD.'],
  'spouse'                           :['spouse', 'AANSWERR is/was the spouse of KKEYWORDD.'],
  'sibling'                          :['sibling of', 'AANSWERR is the sibling of KKEYWORDD.'],
+ 'siblings'                          :['sibling of', 'AANSWERR is the sibling of KKEYWORDD.'],
  'other_family'                     :['other family', 'KKEYWORDD and AANSWERR are otherwise family.'],
  'age'                              :['age', 'KKEYWORDD is AANSWERR years old.'],
  'alternate_names'                  :['altername name', 'AANSWERR is an alternate name of KKEYWORDD.'],
@@ -117,8 +118,7 @@ def index():
         data_graph = current_user.visualize_data()
         data_script, data_div = components(data_graph)
 
-        model_graph = current_user.visualize_model()
-        model_script, model_div = components(model_graph)
+        att_list = current_user.visualize_model(current_user.cursor)
 
         loss_graph = current_user.loss_graph()
         loss_script, loss_div = components(loss_graph)
@@ -131,7 +131,7 @@ def index():
                 data = instance_data, description = instance_description,
                 statistics = current_user.statistics(),
                 data_script = data_script, data_div = data_div,
-                model_script = model_script, model_div = model_div,
+                att_list = att_list,
                 loss_script = loss_script, loss_div = loss_div,
                 performance_script = performance_script, performance_div = performance_div)
 
@@ -163,8 +163,7 @@ def index_post():
     data_graph = current_user.visualize_data()
     data_script, data_div = components(data_graph)
 
-    model_graph = current_user.visualize_model()
-    model_script, model_div = components(model_graph)
+    att_list = current_user.visualize_model(current_user.cursor)
 
     loss_graph = current_user.loss_graph()
     loss_script, loss_div = components(loss_graph)
@@ -177,7 +176,7 @@ def index_post():
             data = instance_data, description = instance_description,
             statistics = current_user.statistics(),
             data_script = data_script, data_div = data_div,
-            model_script = model_script, model_div = model_div,
+            att_list = att_list,
             loss_script = loss_script, loss_div = loss_div,
             performance_script = performance_script, performance_div = performance_div)
 

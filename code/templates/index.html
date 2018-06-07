@@ -199,8 +199,23 @@
                                 <span style='font-weight:bold;'>Model Visualization</span>
                             </div>
                             <div class="panel-body">
-                                {{ model_script|safe }}
-                                {{ model_div|safe }}
+                                {% if att_list|length == 0 %}
+                                    Waiting...
+                                {% else %}
+                                    {% set txt_list = data.split(' ') %}
+                                    {% for att in att_list %}
+                                    <span href="" title="{{'%0.3f'|format(att)}}" style="background-color:rgba(255,0,0,{{att}})">{{txt_list[loop.index0]}}</span> 
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <div class="panel-heading">
+                                <span style='font-weight:bold;'>Model Prediction</span>
+                            </div>
+                            <div class="panel-body">
+                                {% if att_list|length == 0 %}
+                                    Waiting...
+                                {% else %}
+                                {% endif %}
                             </div>
                         </div>
                     </div>

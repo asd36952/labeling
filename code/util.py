@@ -48,13 +48,14 @@ class Util():
         return sentence_index
 
     def sentence_to_index(self, sentence):
-        tmp = [self.vocab["<SOS>"]]
+        #tmp = [self.vocab["<SOS>"]]
+        tmp = []
         for word in sentence.split(" "):
             if word in self.vocab.keys():
                 tmp.append(self.vocab[word])
             else:
                 tmp.append(self.vocab["<UNK>"])
-        tmp.append(self.vocab["<EOS>"])
+        #tmp.append(self.vocab["<EOS>"])
         return tmp
 
     def batch_position_to_index(self, position):
@@ -64,7 +65,8 @@ class Util():
         return position_index
 
     def position_to_index(self, position):
-        tmp_position = [position[0] - 1] + position + [position[-1] + 1]
+        #tmp_position = [position[0] - 1] + position + [position[-1] + 1]
+        tmp_position = position
         
         tmp = []
         for i in tmp_position:
