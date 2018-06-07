@@ -39,7 +39,7 @@ class Util():
             if i[0] != "#":
                 relation_list.append(i)
  
-        return {relation:i for i, relation in enumerate(relation_list)}
+        return {relation[4:]:i for i, relation in enumerate(relation_list)}
 
     def batch_sentence_to_index(self, sentence):
         with mp.Pool() as p:
@@ -79,7 +79,7 @@ class Util():
         return relation_index
 
     def relation_to_index(self, relation):
-        return self.relation_dict["per:" + relation]
+        return self.relation_dict[relation]
 
     def batch_relation_to_onehot(self, relation):
         with mp.Pool() as p:
@@ -89,8 +89,8 @@ class Util():
 
     def relation_to_onehot(self, relation):
         tmp = [0] * len(self.relation_dict.keys())
-        if "per:" + relation in self.relation_dict.keys():
-            tmp[self.relation_dict["per:" + relation]] = 1
+        if relation in self.relation_dict.keys():
+            tmp[self.relation_dict[relation]] = 1
 
             return tmp
         
@@ -144,7 +144,7 @@ class Util():
         for i in range(0, len(sentence), batch_size):
             yield sentence[tmp[i:i + batch_size]].tolist(), entity_position[tmp[i:i + batch_size]].tolist(), filler_position[tmp[i:i + batch_size]].tolist()
             
-    def batch_train(self, sentence, entity_position, filler_position, relation, batch_size, random):
+    def batch_train(self, sentence, entity_position, filler_position, relation, label, batch_size, random):
         tmp = list(range(len(sentence)))
             
         if random == True:
@@ -154,9 +154,10 @@ class Util():
         entity_position = np.array(entity_position)
         filler_position = np.array(filler_position)
         relation = np.array(relation)
+        label = np.array(label)
         
         for i in range(0, len(sentence), batch_size):
-            yield sentence[tmp[i:i + batch_size]].tolist(), entity_position[tmp[i:i + batch_size]].tolist(), filler_position[tmp[i:i + batch_size]].tolist(), relation[tmp[i:i + batch_size]].tolist()
+            yield sentence[tmp[i:i + batch_size]].tolist(), entity_position[tmp[i:i + batch_size]].tolist(), filler_position[tmp[i:i + batch_size]].tolist(), relation[tmp[i:i + batch_size]].tolist(), label[tmp[i:i + batch_size]].tolist()
          
     def length_to_onehot(self, length, max_len):
         tmp_list = []

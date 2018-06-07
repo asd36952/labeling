@@ -188,11 +188,8 @@
                                 <span style='font-weight:bold;'>Data Visualization</span>
                             </div>
                             <div class="panel-body">
-                                {% if user.cursor < 10 %}
-                                    At least 10 data need for Visulaization.
-                                {% else %}
-                                 show
-                                {% endif %}
+                                {{ data_script|safe }}
+                                {{ data_div|safe }}
                             </div>
                         </div>
                     </div>
@@ -202,6 +199,8 @@
                                 <span style='font-weight:bold;'>Model Visualization</span>
                             </div>
                             <div class="panel-body">
+                                {{ model_script|safe }}
+                                {{ model_div|safe }}
                             </div>
                         </div>
                     </div>
@@ -253,12 +252,8 @@
                                 <span style='font-weight:bold;'>Training Progress</span>
                             </div>
                             <div class="panel-body">
-                                {% if user.cursor < 10 %}
-                                    At least 10 data need for Model.
-                                {% else %}
-                                    {{ loss_script|safe }}
-                                    {{ loss_div|safe }}
-                                {% endif %}
+                                {{ loss_script|safe }}
+                                {{ loss_div|safe }}
                             </div>
                         </div>
                     </div>
@@ -268,12 +263,8 @@
                                 <span style='font-weight:bold;'>Model Performance</span>
                             </div>
                             <div class="panel-body">
-                                {% if user.cursor < 10 %}
-                                    At least 10 data need for Model.
-                                {% else %}
-                                    {{ loss_script|safe }}
-                                    {{ loss_div|safe }}
-                                {% endif %}
+                                {{ performance_script|safe }}
+                                {{ performance_div|safe }}
                             </div>
                         </div>
                     </div>

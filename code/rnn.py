@@ -5,7 +5,6 @@ from torch.nn.parameter import Parameter
 
 import pickle
 import numpy as np
-from sklearn.manifold import TSNE
 
 class Word_Embedding(nn.Module):
     def __init__(self, embedding_dim, util, use_gpu):
@@ -115,18 +114,20 @@ class Classifier(nn.Module):
         self.encoder_forward = nn.LSTM(self.embedding_dim, hidden_size, 1, batch_first = True)
         self.encoder_backward = nn.LSTM(self.embedding_dim, hidden_size, 1, batch_first = True)
 
-        self.fc = nn.Linear(hidden_size * 2, len(util.relation_dict.keys()))
+        self.fc1 = nn.Linear(hidden_size * 2, 2)
+        self.fc2 = nn.Linear(2, hidden_size * 2)
+        self.fc3 = nn.Linear(hidden_size * 2, len(util.relation_dict.keys()))
 
         if use_gpu == True:
             self.cuda()
 
     def forward(self, batch_sentence, batch_entity_position, batch_filler_position, max_len = None):
-        sentence_len = list(map(len, self.util.batch_sentence_to_index(batch_sentence)))
+        sentence_len_list = list(map(len, self.util.batch_sentence_to_index(batch_sentence)))
 
         if max_len is None:
-            batch_max_len = max(sentence_len)
+            batch_max_len = max(sentence_len_list)
 
-        sentence_len = Variable(torch.FloatTensor(self.util.length_to_onehot(sentence_len, batch_max_len))).unsqueeze(2)
+        sentence_len = Variable(torch.FloatTensor(self.util.length_to_onehot(sentence_len_list, batch_max_len))).unsqueeze(2)
 
         if self.use_gpu == True:
             sentence_len = sentence_len.cuda()
@@ -141,22 +142,43 @@ class Classifier(nn.Module):
         encoder_output_forward, (encoder_hidden_forward, encoder_cell_forward) = self.encoder_forward(sentence_embedding, (encoder_hidden_forward, encoder_cell_forward))
         encoder_output_backward, (encoder_hidden_backward, encoder_cell_backward) = self.encoder_backward(reversed_sentence_embedding, (encoder_hidden_backward, encoder_cell_backward))
 
-        encoder_output = torch.cat([encoder_output_forward, encoder_output_backward], 2)
+        encoder_output_list = []
+        encoder_output = Variable(torch.FloatTensor(torch.zeros(tmp_batch_size, self.hidden_size * 2)))
+        if self.use_gpu == True:
+            encoder_output = encoder_output.cuda()
+        
+        for batch_idx in range(tmp_batch_size):
+            encoder_index = Variable(torch.LongTensor(list(i for i in reversed(range(sentence_len_list[batch_idx])))))
+            if self.use_gpu == True:
+                encoder_index = encoder_index.cuda()
 
-        encoder_output = torch.bmm(encoder_output.transpose(1,2), sentence_len).squeeze(2)
+            encoder_output_list.append(torch.cat([encoder_output_forward[batch_idx][:sentence_len_list[batch_idx]], torch.index_select(encoder_output_backward[batch_idx], 0, encoder_index)], 1))
+            encoder_output[batch_idx] = torch.cat([encoder_output_forward[batch_idx][sentence_len_list[batch_idx] - 1], encoder_output_backward[batch_idx][sentence_len_list[batch_idx] - 1]], 0)
 
-        output = nn.Softmax()(self.fc(encoder_output))
+        for batch_idx in range(tmp_batch_size):
+            print(sentence_len_list[batch_idx])
+            print(encoder_output_list[batch_idx].size())
+        exit()
 
-        return output
+        att_list = []
+        for batch_idx in range(tmp_batch_size):
+            att_list.append()
+
+        data_vis = self.fc1(encoder_output)
+        output = nn.ReLU()(self.fc2(data_vis))
+        output = nn.Softmax()(self.fc3(output))
+
+        return output, data_vis
 
 
-    def train(self, sentence, entity_position, filler_position, relation, batch_size, epoch, learning_rate, username,
+    def train(self, sentence, entity_position, filler_position, relation, label, batch_size, learning_rate, username,
             valid_sentence = None, valid_entity_position = None, valid_filler_position = None, valid_relation = None, max_len = None):
+
         optimizer = torch.optim.SGD(self.parameters(), lr = learning_rate)
 
         loss_list = []
 
-        for batch_sentence, batch_entity_position, batch_filler_position, batch_relation in self.util.batch_train(sentence, entity_position, filler_position, relation, batch_size, True):
+        for batch_sentence, batch_entity_position, batch_filler_position, batch_relation, batch_label in self.util.batch_train(sentence, entity_position, filler_position, relation, label, batch_size, True):
             sentence_len = list(map(len, self.util.batch_sentence_to_index(batch_sentence)))
 
             if max_len is None:
@@ -164,18 +186,22 @@ class Classifier(nn.Module):
 
             sentence_len = Variable(torch.FloatTensor(self.util.length_to_onehot(sentence_len, batch_max_len))).unsqueeze(2)
 
-            relation_index = self.util.batch_relation_to_index(batch_relation)
-            relation_index = Variable(torch.LongTensor(relation_index))
+            relation_onehot = self.util.batch_relation_to_onehot(batch_relation)
+            relation_onehot = Variable(torch.FloatTensor(relation_onehot))
 
             tmp_batch_size = sentence_len.size()[0] 
 
+            batch_label = Variable(torch.FloatTensor(batch_label))
+
             if self.use_gpu == True:
                 sentence_len = sentence_len.cuda()
-                relation_index = relation_index.cuda()
+                relation_onehot = relation_onehot.cuda()
+                batch_label = batch_label.cuda()
 
-            output = self(batch_sentence, batch_entity_position, batch_filler_position)
+            output = self(batch_sentence, batch_entity_position, batch_filler_position)[0]
+            output = torch.bmm(output.unsqueeze(1), relation_onehot.unsqueeze(2)).squeeze()
 
-            loss = torch.nn.functional.cross_entropy(output, relation_index)
+            loss = torch.nn.BCELoss()(output, batch_label)
             loss /= tmp_batch_size
 
             loss.backward()
@@ -188,17 +214,19 @@ class Classifier(nn.Module):
             f.write(str(np.mean(loss_list)))
             f.write("\n")
 
-        with open("../user/%s/model/performance" % username, "a") as f:
-            f.write("\t".join(map(str, self.F1_score(valid_sentence, valid_entity_position, valid_filler_position, valid_relation, batch_size, max_len))))
-            f.write("\n")
+        print(np.mean(loss_list))
 
-        print(self.F1_score(valid_sentence, valid_entity_position, valid_filler_position, valid_relation, batch_size, max_len))
+    def test(self, sentence, entity_position, filler_position, relation, batch_size, username, max_len = None):
+        with open("../user/%s/model/performance" % username, "a") as f:
+            f.write("\t".join(map(str, self.F1_score(sentence, entity_position, filler_position, relation, batch_size, max_len))))
+            f.write("\n")
+        print(self.F1_score(sentence, entity_position, filler_position, relation, batch_size, max_len))
 
     def F1_score(self, sentence, entity_position, filler_position, relation, batch_size, max_len = None):
         output_list = []
         for batch_sentence, batch_entity_position, batch_filler_position in self.util.batch_forward(sentence, entity_position, filler_position, batch_size):
-            output_list += self(batch_sentence, batch_entity_position, batch_filler_position, max_len).cpu().data
-
+            output_list += self(batch_sentence, batch_entity_position, batch_filler_position, max_len)[0].cpu().data.numpy().tolist()
+        output_list = np.array(output_list)
 
         thres = 0.5
         gold = 0
@@ -216,13 +244,13 @@ class Classifier(nn.Module):
         if out != 0:
             P = correct / out
         else:
-            P = 0
+            P = 0.0
         R = correct / gold
 
         if (P + R) != 0:
             F1 = 2 * P * R / (P + R)
         else:
-            F1 = 0
+            F1 = 0.0
 
         return P, R, F1
 
@@ -234,51 +262,19 @@ class Classifier(nn.Module):
 
     def save(self, username, epoch = 0):
         torch.save(self, "../user/%s/model/%d_%d_%d_latest" % (username, self.embedding.word_embedding.embedding_dim, self.embedding.entity_position_embedding.embedding_dim, self.hidden_size))
-        if epoch != 0:
-            torch.save(self, "../user/%s/model/%d" % (username, epoch))
+        #if epoch != 0:
+        #    torch.save(self, "../user/%s/model/%d" % (username, epoch))
 
-    def visualize_data(self, sentence, entity_position, filler_position, relation, batch_size, username):
+    def visualize_data(self, sentence, entity_position, filler_position, relation, batch_size, username, max_len = None):
+        data_dict = dict()
         data_list = []
-        for batch_sentence, batch_entity_position, batch_filler_position, batch_relation in self.util.batch_train_discriminator(sentence, entity_position, filler_position, relation, batch_size, True):
-            sentence_len = list(map(len, self.util.batch_sentence_to_index(batch_sentence)))
+        for batch_sentence, batch_entity_position, batch_filler_position in self.util.batch_forward(sentence, entity_position, filler_position, batch_size):
+            data_list += self(batch_sentence, batch_entity_position, batch_filler_position, max_len)[1].cpu().data.numpy().tolist()
 
-            batch_max_len = max(sentence_len)
-
-            #relation_onehot = self.util.batch_relation_to_onehot(batch_relation)
-            #no_relation_onehot = self.util.batch_no_relation_to_onehot(batch_relation)
-            relation_index = self.util.batch_relation_to_index(batch_relation)
-
-            sentence_len = Variable(torch.FloatTensor(self.util.length_to_onehot(sentence_len, batch_max_len))).unsqueeze(2)
-            #relation_onehot = Variable(torch.FloatTensor(relation_onehot))
-            #no_relation_onehot = Variable(torch.FloatTensor(no_relation_onehot))
-            relation_index = Variable(torch.LongTensor(relation_index))
-
-            tmp_batch_size = sentence_len.size()[0]
-
-            #margin = Variable(torch.FloatTensor([[-0.7, -0.3]] * tmp_batch_size)) 
-
-            if self.use_gpu == True:
-                sentence_len = sentence_len.cuda()
-                #relation_onehot = relation_onehot.cuda()
-                #no_relation_onehot = no_relation_onehot.cuda()
-                relation_index = relation_index.cuda()
-
-                #margin = margin.cuda()
-
-            sentence_embedding, reversed_sentence_embedding = self.embedding(batch_sentence, batch_entity_position, batch_filler_position)
-           
-            encoder_hidden_forward, encoder_cell_forward = self.init_encoder(tmp_batch_size)
-            encoder_hidden_backward, encoder_cell_backward = self.init_encoder(tmp_batch_size)
-           
-            encoder_output_forward, (encoder_hidden_forward, encoder_cell_forward) = self.encoder_forward(sentence_embedding, (encoder_hidden_forward, encoder_cell_forward))
-            encoder_output_backward, (encoder_hidden_backward, encoder_cell_backward) = self.encoder_backward(reversed_sentence_embedding, (encoder_hidden_backward, encoder_cell_backward))
-
-            encoder_output = torch.cat([encoder_output_forward, encoder_output_backward], 2)
-
-            encoder_output = torch.bmm(encoder_output.transpose(1,2), sentence_len).squeeze(2)
-            
-            data_list += encoder_output.data.numpy().tolist()
-
-        data_list = TSNE(n_components=2).fit_transform(data_list)
-        with open("../user/%s/figure/data_vis/latest.pkl" % username, "wb") as f:
-            pickle.dump(data_list, f)
+        for idx in range(len(relation)):
+            if relation[idx] not in data_dict:
+                data_dict[relation[idx]] = []
+            data_dict[relation[idx]].append(data_list[idx])
+    
+        with open("../user/%s/figure/data_vis/data.pkl" % username, "wb") as f:
+            pickle.dump(data_dict, f)

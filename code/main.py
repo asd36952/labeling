@@ -111,16 +111,29 @@ def index():
             instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
-        if current_user.cursor > 10:
-            #if current_user.pid == -1:
-            #    current_user.run_classifier()
+        if current_user.pid == -1:
+            current_user.run_classifier()
 
-            loss_graph = current_user.loss_graph()
-            loss_script, loss_div = components(loss_graph)
-        else:
-            loss_script, loss_div = None, None
+        data_graph = current_user.visualize_data()
+        data_script, data_div = components(data_graph)
 
-        return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(), loss_script = loss_script, loss_div = loss_div)
+        model_graph = current_user.visualize_model()
+        model_script, model_div = components(model_graph)
+
+        loss_graph = current_user.loss_graph()
+        loss_script, loss_div = components(loss_graph)
+
+        performance_graph = current_user.performance_graph()
+        performance_script, performance_div = components(performance_graph)
+
+        return render_template("index.html",
+                user = current_user,
+                data = instance_data, description = instance_description,
+                statistics = current_user.statistics(),
+                data_script = data_script, data_div = data_div,
+                model_script = model_script, model_div = model_div,
+                loss_script = loss_script, loss_div = loss_div,
+                performance_script = performance_script, performance_div = performance_div)
 
 @app.route('/', methods = ["POST"])
 @app.route('/index.html', methods = ["POST"])
@@ -144,16 +157,29 @@ def index_post():
             instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
-    if current_user.cursor > 10:
-        #if current_user.pid == -1:
-        #    current_user.run_classifier()
+    if current_user.pid == -1:
+        current_user.run_classifier()
 
-        loss_graph = current_user.loss_graph()
-        loss_script, loss_div = components(loss_graph)
-    else:
-        loss_script, loss_div = None, None
+    data_graph = current_user.visualize_data()
+    data_script, data_div = components(data_graph)
 
-    return render_template("index.html", user = current_user, data = instance_data, description = instance_description, statistics = current_user.statistics(), data_vis = None, loss_script = loss_script, loss_div = loss_div)
+    model_graph = current_user.visualize_model()
+    model_script, model_div = components(model_graph)
+
+    loss_graph = current_user.loss_graph()
+    loss_script, loss_div = components(loss_graph)
+
+    performance_graph = current_user.performance_graph()
+    performance_script, performance_div = components(performance_graph)
+
+    return render_template("index.html",
+            user = current_user,
+            data = instance_data, description = instance_description,
+            statistics = current_user.statistics(),
+            data_script = data_script, data_div = data_div,
+            model_script = model_script, model_div = model_div,
+            loss_script = loss_script, loss_div = loss_div,
+            performance_script = performance_script, performance_div = performance_div)
 
 @app.route('/login.html')
 def login():
@@ -195,6 +221,8 @@ def register_post():
 
 @app.route('/logout.html')
 def logout():
+    current_user = get_user()
+    current_user.stop_classifier()
     session.pop('current_user', None)
     return redirect(url_for("index"))
 

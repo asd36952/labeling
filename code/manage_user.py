@@ -6,10 +6,13 @@ import signal
 import subprocess
 import html
 import pickle
+import itertools
 
+from bokeh.palettes import Dark2_5 as palette
 from bokeh.plotting import figure
+from bokeh.models import Legend
 
-USE_GPU = False
+USE_GPU = True
 
 class user():
     def __init__(self):
@@ -32,6 +35,8 @@ class user():
                 self.cursor = int(f2.read())
             with open("../user/%s/pid" % name) as f2:
                 self.pid = int(f2.read())
+            if self.pid != -1:
+                self.stop_classifier()
 
             with open("../user/%s/result/util.pkl" % name, "rb") as f2:
                 self.util = pickle.load(f2)
@@ -208,7 +213,6 @@ class user():
     def statistics(self):
         stat_dict = dict()
         for rel in self.util.relation_dict.keys():
-            rel = rel[4:]
             stat_dict[rel] = [0, 0]
         #stat_dict["no_relation"] = [0, 0]
 
@@ -224,21 +228,123 @@ class user():
 
         return stat_dict
 
+    def visualize_data(self):
+        p = figure(plot_width = 750, plot_height = 500)
+        try:
+            with open("../user/%s/figure/data_vis/data.pkl" % self.name, "rb") as f:
+                data_vis = pickle.load(f)
+        except FileNotFoundError:
+            return p
+        except EOFError:
+            return p
+
+        colors = itertools.cycle(palette) 
+        circle_list = []
+        for rel in data_vis.keys():
+            if rel == "unlabeled":
+                size = 1.5
+            else:
+                size = 5
+            circle = p.circle([elem[0] for elem in data_vis[rel]], [elem[1] for elem in data_vis[rel]], color = next(colors), size = size)
+            circle_list.append((rel, [circle]))
+
+        legend = Legend(items = circle_list)
+        p.add_layout(legend, 'right')
+
+        p.legend.click_policy = "hide"
+
+        return p
+
+    def visualize_model(self):
+        p = figure(plot_width = 600, plot_height = 500)
+        try:
+            with open("../user/%s/figure/modl_vis/vis.pkl" % self.name, "rb") as f:
+                model_vis = pickle.load(f)
+        except FileNotFoundError:
+            return p
+
     def loss_graph(self):
-        with open("../user/%s/model/loss" % self.name) as f:
+        p = figure(plot_width = 600, plot_height = 200, x_axis_label = 'Epoch', y_axis_label = 'Loss')
+        try:
+            with open("../user/%s/model/loss" % self.name) as f:
                 loss_list = f.read().split("\n")
+        except FileNotFoundError:
+            return p
 
-        while(loss_list[-1] == ""):
-            loss_list = loss_list[:-1]
+        try:
+            while(loss_list[-1] == ""):
+                loss_list = loss_list[:-1]
+        except IndexError:
+            return p
 
-        p = figure(plot_width=400, plot_height=150)
+        p.circle(list(range(len(loss_list))), loss_list)
         p.line(list(range(len(loss_list))), loss_list, line_width=1)
 
         return p
 
+    def performance_graph(self):
+        p = figure(plot_width = 600, plot_height = 200, x_axis_label = 'Epoch', y_axis_label = 'Performance')
+        try:
+            with open("../user/%s/model/performance" % self.name) as f:
+                performance_list = f.read().split("\n")
+        except FileNotFoundError:
+            return p
+
+        try: 
+            while(performance_list[-1] == ""):
+                performance_list = performance_list[:-1]
+        except IndexError:
+            return p
+
+        P_list = []
+        R_list = []
+        F1_list = []
+        for performance in performance_list:
+            P, R, F1 = performance.split("\t")
+            P_list.append(P)
+            R_list.append(R)
+            F1_list.append(F1)
+
+        P_circle = p.circle(list(range(len(performance_list))), P_list, color = "blue")
+        P_line = p.line(list(range(len(performance_list))), P_list, line_width = 1, color = "blue")
+        R_circle = p.circle(list(range(len(performance_list))), R_list, color = "red")
+        R_line = p.line(list(range(len(performance_list))), R_list, line_width = 1, color = "red")
+        F1_circle = p.circle(list(range(len(performance_list))), F1_list, color = "purple")
+        F1_line = p.line(list(range(len(performance_list))), F1_list, line_width = 1, color = "purple")
+
+        legend = Legend(items=[("Precision", [P_circle, P_line]),
+            ("Recall", [R_circle, R_line]),
+            ("F1 Score", [F1_circle, F1_line])])
+        p.add_layout(legend, 'right')
+
+        p.legend.click_policy="hide"
+
+        return p
+
     def run_classifier(self):
-        p = subprocess.Popen(["python3 rnn_train.py"], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if self.pid != -1:
+            self.stop_classifier()
+
+        p = subprocess.Popen(["python3 rnn_train.py %s %d %d %d > ../user/%s/model/log.txt" % (self.name, self.model_info["word_embedding_dim"], self.model_info["position_embedding_dim"], self.model_info["sentence_embedding_dim"], self.name)], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         with open("../user/%s/pid" % self.name, "w") as f:
             f.write(str(p.pid))
 
         self.pid = p.pid
+
+    def stop_classifier(self):
+        if self.pid == -1:
+            with open("../user/%s/pid" % self.name) as f:
+                self.pid = f.read()
+            self.pid = int(self.pid)
+            if self.pid == -1:
+                return
+        try:
+            os.kill(self.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+        self.pid = -1
+        with open("../user/%s/pid" % self.name, "w") as f:
+            f.write(str(self.pid))
+
+
