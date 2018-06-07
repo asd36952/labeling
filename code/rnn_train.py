@@ -50,7 +50,7 @@ if __name__ == "__main__":
     train_filler_position = []
     train_relation = []
 
-    for data_name in os.listdir("../user/%s/result/train" % args.username):
+    for data_name in sorted(os.listdir("../user/%s/result/train" % args.username), key = lambda x:int(x)):
         with open("../user/%s/result/train/%s" % (args.username, data_name)) as f:
             line = f.read()
             while(line[-1] == "\n"):
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     valid_filler_position = []
     valid_relation = []
 
-    for data_name in os.listdir("../user/%s/result/valid" % args.username):
+    for data_name in sorted(os.listdir("../user/%s/result/valid" % args.username), key = lambda x:int(x)):
         with open("../user/%s/result/valid/%s" % (args.username, data_name)) as f:
             line = f.read()
             while(line[-1] == "\n"):
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         relation = []
         label = []
         
-        for data_name in os.listdir("../user/%s/result/label" % args.username):
+        for data_name in sorted(os.listdir("../user/%s/result/label" % args.username), key = lambda x:int(x)):
             with open("../user/%s/result/label/%s" % (args.username, data_name)) as f:
                 line = f.read()
                 while(line[-1] == "\n"):
@@ -130,6 +130,9 @@ if __name__ == "__main__":
                 temp_relation.append("unknown")
 
         classifier.visualize_data(train_sentence, train_entity_position, train_filler_position, temp_relation + (["unlabeled"] * (len(train_relation) - len(temp_relation))), args.batch_size, args.username)
+
+        classifier.visualize_model(sentence, entity_position, filler_position, args.batch_size, username = args.username)
+
         classifier.save(args.username)
 
 

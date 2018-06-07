@@ -143,9 +143,7 @@ class Classifier(nn.Module):
         encoder_output_backward, (encoder_hidden_backward, encoder_cell_backward) = self.encoder_backward(reversed_sentence_embedding, (encoder_hidden_backward, encoder_cell_backward))
 
         encoder_output_list = []
-        encoder_output = Variable(torch.FloatTensor(torch.zeros(tmp_batch_size, self.hidden_size * 2)))
-        if self.use_gpu == True:
-            encoder_output = encoder_output.cuda()
+        encoder_cell = torch.cat([encoder_cell_forward.squeeze(0), encoder_cell_backward.squeeze(0)], 1)
         
         for batch_idx in range(tmp_batch_size):
             encoder_index = Variable(torch.LongTensor(list(i for i in reversed(range(sentence_len_list[batch_idx])))))
@@ -153,22 +151,22 @@ class Classifier(nn.Module):
                 encoder_index = encoder_index.cuda()
 
             encoder_output_list.append(torch.cat([encoder_output_forward[batch_idx][:sentence_len_list[batch_idx]], torch.index_select(encoder_output_backward[batch_idx], 0, encoder_index)], 1))
-            encoder_output[batch_idx] = torch.cat([encoder_output_forward[batch_idx][sentence_len_list[batch_idx] - 1], encoder_output_backward[batch_idx][sentence_len_list[batch_idx] - 1]], 0)
 
-        for batch_idx in range(tmp_batch_size):
-            print(sentence_len_list[batch_idx])
-            print(encoder_output_list[batch_idx].size())
-        exit()
+        encoder_output = Variable(torch.FloatTensor(torch.zeros(tmp_batch_size, self.hidden_size * 2)))
+        if self.use_gpu == True:
+            encoder_output = encoder_output.cuda()  
 
         att_list = []
         for batch_idx in range(tmp_batch_size):
-            att_list.append()
+            att = nn.Softmax()(torch.matmul(encoder_output_list[batch_idx], encoder_cell[batch_idx]))
+            encoder_output[batch_idx] = torch.matmul(att, encoder_output_list[batch_idx])
+            att_list.append(att.cpu().data.numpy().tolist())
 
         data_vis = self.fc1(encoder_output)
         output = nn.ReLU()(self.fc2(data_vis))
         output = nn.Softmax()(self.fc3(output))
 
-        return output, data_vis
+        return output, data_vis, att_list
 
 
     def train(self, sentence, entity_position, filler_position, relation, label, batch_size, learning_rate, username,
@@ -278,3 +276,11 @@ class Classifier(nn.Module):
     
         with open("../user/%s/figure/data_vis/data.pkl" % username, "wb") as f:
             pickle.dump(data_dict, f)
+
+    def visualize_model(self, sentence, entity_position, filler_position, batch_size, username, max_len = None):
+        att_list = []
+        for batch_sentence, batch_entity_position, batch_filler_position in self.util.batch_forward(sentence, entity_position, filler_position, batch_size):
+            att_list += self(batch_sentence, batch_entity_position, batch_filler_position, max_len)[2]
+
+        with open("../user/%s/figure/model_vis/att.pkl" % username, "wb") as f:
+            pickle.dump(att_list, f)
