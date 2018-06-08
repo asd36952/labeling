@@ -112,13 +112,10 @@ def index():
             instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
-        if current_user.pid == -1:
-            current_user.run_classifier()
-
         data_graph = current_user.visualize_data()
         data_script, data_div = components(data_graph)
 
-        att_list = current_user.visualize_model(current_user.cursor)
+        att_list, output = current_user.visualize_model(current_user.cursor)
 
         loss_graph = current_user.loss_graph()
         loss_script, loss_div = components(loss_graph)
@@ -128,10 +125,12 @@ def index():
 
         return render_template("index.html",
                 user = current_user,
+                cursor = current_user.cursor,
                 data = instance_data, description = instance_description,
                 statistics = current_user.statistics(),
                 data_script = data_script, data_div = data_div,
                 att_list = att_list,
+                output = output,
                 loss_script = loss_script, loss_div = loss_div,
                 performance_script = performance_script, performance_div = performance_div)
 
@@ -163,7 +162,7 @@ def index_post():
     data_graph = current_user.visualize_data()
     data_script, data_div = components(data_graph)
 
-    att_list = current_user.visualize_model(current_user.cursor)
+    att_list, output = current_user.visualize_model(current_user.cursor)
 
     loss_graph = current_user.loss_graph()
     loss_script, loss_div = components(loss_graph)
@@ -173,10 +172,93 @@ def index_post():
 
     return render_template("index.html",
             user = current_user,
+            cursor = current_user.cursor,
             data = instance_data, description = instance_description,
             statistics = current_user.statistics(),
             data_script = data_script, data_div = data_div,
             att_list = att_list,
+            output = output,
+            loss_script = loss_script, loss_div = loss_div,
+            performance_script = performance_script, performance_div = performance_div)
+
+@app.route('/<cursor>')
+def index_cursor(cursor):
+    cursor = int(cursor)
+    current_user = get_user()
+    if current_user.is_active == False:
+        return render_template("index.html", user = current_user)
+    else:
+        instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", cursor)
+        if instance_relation != "no_relation":
+            instance_relation = instance_relation[4:]
+        instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
+
+        data_graph = current_user.visualize_data()
+        data_script, data_div = components(data_graph)
+
+        att_list, output = current_user.visualize_model(cursor)
+
+        loss_graph = current_user.loss_graph()
+        loss_script, loss_div = components(loss_graph)
+
+        performance_graph = current_user.performance_graph()
+        performance_script, performance_div = components(performance_graph)
+
+        return render_template("index.html",
+                user = current_user,
+                cursor = cursor,
+                data = instance_data, description = instance_description,
+                statistics = current_user.statistics(),
+                data_script = data_script, data_div = data_div,
+                att_list = att_list,
+                output = output,
+                loss_script = loss_script, loss_div = loss_div,
+                performance_script = performance_script, performance_div = performance_div)
+
+@app.route('/<cursor>', methods = ["POST"])
+def index_cursor_post(cursor):
+    cursor = int(cursor)
+    current_user = get_user()
+
+    instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
+    if instance_relation != "no_relation":
+        instance_relation = instance_relation[4:]
+    instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
+
+    if (request.form['labeling'] == "Yes")|(request.form['labeling'] == "No"):
+        if request.form['labeling'] == "Yes":
+            label = 1
+        else:
+            label = 0
+        current_user.update(instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, label, cursor)
+
+        instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
+        if instance_relation != "no_relation":
+            instance_relation = instance_relation[4:]
+        instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
+
+    if current_user.pid == -1:
+        current_user.run_classifier()
+
+    data_graph = current_user.visualize_data()
+    data_script, data_div = components(data_graph)
+
+    att_list, output = current_user.visualize_model(current_user.cursor)
+
+    loss_graph = current_user.loss_graph()
+    loss_script, loss_div = components(loss_graph)
+
+    performance_graph = current_user.performance_graph()
+    performance_script, performance_div = components(performance_graph)
+
+    return render_template("index.html",
+            user = current_user,
+            cursor = current_user.cursor,
+            data = instance_data, description = instance_description,
+            statistics = current_user.statistics(),
+            data_script = data_script, data_div = data_div,
+            att_list = att_list,
+            output = output,
             loss_script = loss_script, loss_div = loss_div,
             performance_script = performance_script, performance_div = performance_div)
 
@@ -227,5 +309,5 @@ def logout():
 
 if __name__ == '__main__':
 
-    #app.debug = True
+    app.debug = True
     app.run(host='0.0.0.0')

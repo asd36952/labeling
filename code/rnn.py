@@ -172,7 +172,8 @@ class Classifier(nn.Module):
     def train(self, sentence, entity_position, filler_position, relation, label, batch_size, learning_rate, username,
             valid_sentence = None, valid_entity_position = None, valid_filler_position = None, valid_relation = None, max_len = None):
 
-        optimizer = torch.optim.SGD(self.parameters(), lr = learning_rate)
+        #optimizer = torch.optim.SGD(self.parameters(), lr = learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr = learning_rate)
 
         loss_list = []
 
@@ -200,16 +201,22 @@ class Classifier(nn.Module):
             output = torch.bmm(output.unsqueeze(1), relation_onehot.unsqueeze(2)).squeeze()
 
             loss = torch.nn.BCELoss()(output, batch_label)
-            loss /= tmp_batch_size
+            #loss /= tmp_batch_size
 
-            loss.backward()
+            try:
+                loss.backward()
+            except RuntimeError:
+                continue
+
+            nn.utils.clip_grad_norm(self.parameters(), 5)
+
             optimizer.step()
             optimizer.zero_grad()
 
             loss_list.append(loss.cpu().data.numpy()[0])
 
         with open("../user/%s/model/loss" % username, "a") as f:
-            f.write(str(np.mean(loss_list)))
+            f.write(str(np.sum(loss_list)))
             f.write("\n")
 
         print(np.mean(loss_list))
@@ -234,9 +241,12 @@ class Classifier(nn.Module):
             if relation[i] not in self.util.relation_dict.keys():
                 out += sum(output_list[i] >= thres)
             else:
-                if output_list[i][self.util.relation_to_index(relation[i])] >= thres:
-                    correct += 1
-                    out += 1
+                for j in range(len(output_list[i])):
+                    if (j == self.util.relation_to_index(relation[i])) & (output_list[i][j] >= thres):
+                        correct += 1
+                        out += 1
+                    elif (output_list[i][j] >= thres):
+                        out += 1
                 gold += 1
 
         if out != 0:
@@ -263,24 +273,35 @@ class Classifier(nn.Module):
         #if epoch != 0:
         #    torch.save(self, "../user/%s/model/%d" % (username, epoch))
 
-    def visualize_data(self, sentence, entity_position, filler_position, relation, batch_size, username, max_len = None):
-        data_dict = dict()
-        data_list = []
+    def visualize(self, sentence, entity_position, filler_position, relation, batch_size, username, max_len = None):
+        output_list = []
+
+        vis_list = []
+        vis_dict = dict()
+
+        att_list = []
+
         for batch_sentence, batch_entity_position, batch_filler_position in self.util.batch_forward(sentence, entity_position, filler_position, batch_size):
-            data_list += self(batch_sentence, batch_entity_position, batch_filler_position, max_len)[1].cpu().data.numpy().tolist()
+            tmp_output_list, tmp_vis_list, tmp_att_list = self(batch_sentence, batch_entity_position, batch_filler_position, max_len)
+            output_list += tmp_output_list.cpu().cpu().data.numpy().tolist()
+            vis_list += tmp_vis_list.cpu().cpu().data.numpy().tolist()
+            att_list += tmp_att_list
 
         for idx in range(len(relation)):
-            if relation[idx] not in data_dict:
-                data_dict[relation[idx]] = []
-            data_dict[relation[idx]].append(data_list[idx])
-    
-        with open("../user/%s/figure/data_vis/data.pkl" % username, "wb") as f:
-            pickle.dump(data_dict, f)
+            if relation[idx] not in vis_dict:
+                vis_dict[relation[idx]] = []
+            vis_dict[relation[idx]].append(vis_list[idx] + [idx])
 
-    def visualize_model(self, sentence, entity_position, filler_position, batch_size, username, max_len = None):
-        att_list = []
-        for batch_sentence, batch_entity_position, batch_filler_position in self.util.batch_forward(sentence, entity_position, filler_position, batch_size):
-            att_list += self(batch_sentence, batch_entity_position, batch_filler_position, max_len)[2]
+        relation_list = {self.util.relation_dict[k]:k for k in self.util.relation_dict}
+
+        for idx in range(len(output_list)):
+            output_list[idx] = (relation_list[np.argmax(output_list[idx])], output_list[idx][np.argmax(output_list[idx])])
+    
+        with open("../user/%s/figure/model_vis/output.pkl" % username, "wb") as f:
+            pickle.dump(output_list, f)
+
+        with open("../user/%s/figure/data_vis/vis.pkl" % username, "wb") as f:
+            pickle.dump(vis_dict, f)
 
         with open("../user/%s/figure/model_vis/att.pkl" % username, "wb") as f:
             pickle.dump(att_list, f)

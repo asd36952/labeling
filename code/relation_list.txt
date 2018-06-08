@@ -5,4 +5,3 @@ per:siblings
 per:alternate_names
 per:children
 per:spouse
-per:employee_of

@@ -1,6 +1,6 @@
 import time
 
+print("!!")
 while(True):
-    with open("temp.txt", "a") as f:
-        f.write("HI\n")
-    time.sleep(5)
+    time.sleep(1)
+    1 / 0

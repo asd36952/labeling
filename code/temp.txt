@@ -1,3 +1,5 @@
-HI
-HI
-HI
+!!
+Traceback (most recent call last):
+  File "temp.py", line 6, in <module>
+    1 / 0
+ZeroDivisionError: division by zero

@@ -20,9 +20,10 @@ if __name__ == "__main__":
     parser.add_argument("word_embedding_size", type = int, help = "The size of word embedding model")
     parser.add_argument("position_embedding_size", type = int, help = "The size of position embedding model")
     parser.add_argument("hidden_size", type = int, help = "The size of hidden of LSTM")
-    parser.add_argument("-lr", "--learning_rate", type = float, default = 1e-1, help = "Learning Rate for train")
+    parser.add_argument("-lr", "--learning_rate", type = float, default = 1e-4, help = "Learning Rate for train")
     parser.add_argument("-dr", "--decay_rate", type = float, default = 0.9, help = "Decay Rate for train")
-    parser.add_argument("-bs", "--batch_size", type = int, default = 500, help = "Batch Size for Train")
+    parser.add_argument("-bs", "--batch_size", type = int, default = 200, help = "Batch Size for Train")
+    parser.add_argument("-tbs", "--test_batch_size", type = int, default = 1000, help = "Batch Size for Test")
     parser.add_argument("--train_from", type = int, default = -1, help = "Train from model ('-1' will be train from last epoch)")
 
     args = parser.parse_args()
@@ -91,6 +92,7 @@ if __name__ == "__main__":
         valid_filler_position.append(e2_position)
         valid_relation.append(rel[4:])
 
+    cnt = 0
     while(True):
         sentence = []
         entity = []
@@ -104,6 +106,7 @@ if __name__ == "__main__":
             with open("../user/%s/result/label/%s" % (args.username, data_name)) as f:
                 line = f.read()
                 while(line[-1] == "\n"):
+                    print(line)
                     line = line[:-1]
                 sent, e1, e2, e1_position, e2_position, rel, lab = line.split("\t")
             e1_position = list(map(int, e1_position.split(",")))
@@ -117,22 +120,25 @@ if __name__ == "__main__":
             filler_position.append(e2_position)
             relation.append(rel)
             label.append(lab)
+
+        if len(sentence) < 2:
+            continue
    
         classifier.train(sentence, entity_position, filler_position, relation, label, args.batch_size, learning_rate = args.learning_rate, username = args.username)
-
-        classifier.test(valid_sentence, valid_entity_position, valid_filler_position, valid_relation, args.batch_size, args.username)
+        if (cnt + 1) % 5 == 0:
+            classifier.test(valid_sentence, valid_entity_position, valid_filler_position, valid_relation, args.test_batch_size, args.username)
         
-        temp_relation = []
-        for idx in range(len(label)):
-            if label[idx] == 1:
-                temp_relation.append(relation[idx])
-            else:
-                temp_relation.append("unknown")
+        if (cnt + 1) % 10 == 0:
+            temp_relation = []
+            for idx in range(len(label)):
+                if label[idx] == 1:
+                    temp_relation.append(relation[idx])
+                else:
+                    temp_relation.append("unknown")
 
-        classifier.visualize_data(train_sentence, train_entity_position, train_filler_position, temp_relation + (["unlabeled"] * (len(train_relation) - len(temp_relation))), args.batch_size, args.username)
-
-        classifier.visualize_model(train_sentence, train_entity_position, train_filler_position, args.batch_size, username = args.username)
+            classifier.visualize(train_sentence, train_entity_position, train_filler_position, temp_relation + (["unlabeled"] * (len(train_relation) - len(temp_relation))), args.test_batch_size, args.username)
 
         classifier.save(args.username)
 
+        cnt += 1
 

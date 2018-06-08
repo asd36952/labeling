@@ -8,9 +8,9 @@ import html
 import pickle
 import itertools
 
-from bokeh.palettes import Dark2_5 as palette
+from bokeh.palettes import Category20 as palette
 from bokeh.plotting import figure
-from bokeh.models import Legend
+from bokeh.models import Legend, TapTool, HoverTool, ColumnDataSource, OpenURL
 
 USE_GPU = True
 
@@ -163,6 +163,7 @@ class user():
         print("# of data:", len(sentence))
 
         VALID_START = int(0.7 * len(sentence))
+        print(VALID_START)
 
         util = Util(sentence[:VALID_START], "./relation_list.txt", 3, 10)
         with open("../user/%s/result/util.pkl" % (username), "wb") as f:
@@ -190,25 +191,45 @@ class user():
                 f.write("\t")
                 f.write(str(1))
 
-    def update(self, sentence, e1, e2, e1_position, e2_position, relation, label):
-        with open("../user/%s/result/label/%d" % (self.name, self.cursor), "w") as f:
-            f.write(sentence)
-            f.write("\t")
-            f.write(e1)
-            f.write("\t")
-            f.write(e2)
-            f.write("\t")
-            f.write(",".join(map(str, e1_position)))
-            f.write("\t")
-            f.write(",".join(map(str, e2_position)))
-            f.write("\t")
-            f.write(relation)
-            f.write("\t")
-            f.write(str(label))
+    def update(self, sentence, e1, e2, e1_position, e2_position, relation, label, cursor = None):
+        if cursor is None:
+            with open("../user/%s/result/label/%d" % (self.name, self.cursor), "w") as f:
+                f.write(sentence)
+                f.write("\t")
+                f.write(e1)
+                f.write("\t")
+                f.write(e2)
+                f.write("\t")
+                f.write(",".join(map(str, e1_position)))
+                f.write("\t")
+                f.write(",".join(map(str, e2_position)))
+                f.write("\t")
+                f.write(relation)
+                f.write("\t")
+                f.write(str(label))
 
-        self.cursor += 1
-        with open("../user/%s/cursor" % self.name, "w") as f:
-            f.write(str(self.cursor))
+            while(os.path.exists("../user/%s/result/label/%d" % (self.name, self.cursor + 1))):
+                self.cursor += 1
+            self.cursor += 1
+
+            with open("../user/%s/cursor" % self.name, "w") as f:
+                f.write(str(self.cursor))
+
+        else:
+            with open("../user/%s/result/label/%d" % (self.name, cursor), "w") as f:
+                f.write(sentence)
+                f.write("\t")
+                f.write(e1)
+                f.write("\t")
+                f.write(e2)
+                f.write("\t")
+                f.write(",".join(map(str, e1_position)))
+                f.write("\t")
+                f.write(",".join(map(str, e2_position)))
+                f.write("\t")
+                f.write(relation)
+                f.write("\t")
+                f.write(str(label))
 
     def statistics(self):
         stat_dict = dict()
@@ -231,22 +252,27 @@ class user():
     def visualize_data(self):
         p = figure(plot_width = 750, plot_height = 500)
         try:
-            with open("../user/%s/figure/data_vis/data.pkl" % self.name, "rb") as f:
+            with open("../user/%s/figure/data_vis/vis.pkl" % self.name, "rb") as f:
                 data_vis = pickle.load(f)
         except FileNotFoundError:
             return p
         except EOFError:
             return p
 
-        colors = itertools.cycle(palette) 
+        colors = itertools.cycle(palette[8]) 
         circle_list = []
-        for rel in data_vis.keys():
+        for rel in sorted(data_vis.keys()):
             if rel == "unlabeled":
-                size = 1.5
+                size = 4
             else:
-                size = 5
-            circle = p.circle([elem[0] for elem in data_vis[rel]], [elem[1] for elem in data_vis[rel]], color = next(colors), size = size)
+                size = 7
+
+            source = ColumnDataSource(data = dict(x = [elem[0] for elem in data_vis[rel]], y = [elem[1] for elem in data_vis[rel]], cursor = [elem[2] for elem in  data_vis[rel]]))
+            circle = p.circle('x', 'y', size = size, color = next(colors), source = source)
             circle_list.append((rel, [circle]))
+
+        p.add_tools(HoverTool(tooltips = [("Cursor", "@cursor")]))
+        p.add_tools(TapTool(callback = OpenURL(url = "/@cursor")))
 
         legend = Legend(items = circle_list)
         p.add_layout(legend, 'right')
@@ -259,10 +285,14 @@ class user():
         try:
             with open("../user/%s/figure/model_vis/att.pkl" % self.name, "rb") as f:
                 att_list = pickle.load(f)
+            with open("../user/%s/figure/model_vis/output.pkl" % self.name, "rb") as f:
+                output_list = pickle.load(f)
         except FileNotFoundError:
-            return []
+            return [], ("", "")
+        except EOFError:
+            return [], ("", "")
 
-        return att_list[cursor]
+        return att_list[cursor], output_list[cursor]
 
     def loss_graph(self):
         p = figure(plot_width = 600, plot_height = 200, x_axis_label = 'Epoch', y_axis_label = 'Loss')
@@ -306,12 +336,12 @@ class user():
             R_list.append(R)
             F1_list.append(F1)
 
-        P_circle = p.circle(list(range(len(performance_list))), P_list, color = "blue")
-        P_line = p.line(list(range(len(performance_list))), P_list, line_width = 1, color = "blue")
-        R_circle = p.circle(list(range(len(performance_list))), R_list, color = "red")
-        R_line = p.line(list(range(len(performance_list))), R_list, line_width = 1, color = "red")
-        F1_circle = p.circle(list(range(len(performance_list))), F1_list, color = "purple")
-        F1_line = p.line(list(range(len(performance_list))), F1_list, line_width = 1, color = "purple")
+        P_circle = p.circle(list(range(0, len(performance_list) * 5, 5)), P_list, color = "blue")
+        P_line = p.line(list(range(0, len(performance_list) * 5, 5)), P_list, line_width = 1, color = "blue")
+        R_circle = p.circle(list(range(0, len(performance_list) * 5, 5)), R_list, color = "red")
+        R_line = p.line(list(range(0, len(performance_list) * 5, 5)), R_list, line_width = 1, color = "red")
+        F1_circle = p.circle(list(range(0, len(performance_list) * 5, 5)), F1_list, color = "purple")
+        F1_line = p.line(list(range(0, len(performance_list) * 5, 5)), F1_list, line_width = 1, color = "purple")
 
         legend = Legend(items=[("Precision", [P_circle, P_line]),
             ("Recall", [R_circle, R_line]),
@@ -326,13 +356,14 @@ class user():
         if self.pid != -1:
             self.stop_classifier()
 
-        p = subprocess.Popen(["python3 rnn_train.py %s %d %d %d > ../user/%s/model/log.txt" % (self.name, self.model_info["word_embedding_dim"], self.model_info["position_embedding_dim"], self.model_info["sentence_embedding_dim"], self.name)], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen(["python3 rnn_train.py %s %d %d %d > ../user/%s/model/log.txt 2>&1" % (self.name, self.model_info["word_embedding_dim"], self.model_info["position_embedding_dim"], self.model_info["sentence_embedding_dim"], self.name)], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         with open("../user/%s/pid" % self.name, "w") as f:
             f.write(str(p.pid))
 
         self.pid = p.pid
 
     def stop_classifier(self):
+        print(self.pid)
         if self.pid == -1:
             with open("../user/%s/pid" % self.name) as f:
                 self.pid = f.read()

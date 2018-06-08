@@ -165,7 +165,7 @@
                 <div class="row" align="center">
                     <div class="panel panel-default" style="width: 70%;"  align="left">
                         <div class="panel-heading">
-                            <span style='font-weight:bold;'>Labeling</span> (Cursor: {{ user.cursor }})
+                            <span style='font-weight:bold;'>Labeling</span> (Cursor: {{ cursor }})
                         </div>
                         <div class="panel-body">
                             {{ data|safe }}
@@ -204,23 +204,22 @@
                                 {% else %}
                                     {% set txt_list = data.split(' ') %}
                                     {% for att in att_list %}
-                                    <span href="" title="{{'%0.3f'|format(att)}}" style="background-color:rgba(255,0,0,{{att}})">{{txt_list[loop.index0]}}</span> 
+                                    <span href="" title="{{'%0.3f'|format(att)}}" style="background-color:rgba(255,0,0,{{att}})">{{txt_list[loop.index0]|safe}}</span> 
                                     {% endfor %}
                                 {% endif %}
                             </div>
                             <div class="panel-heading">
-                                <span style='font-weight:bold;'>Model Prediction</span>
+                                <span style='font-weight:bold;'>Model Prediction with Confidence</span>
                             </div>
                             <div class="panel-body">
-                                {% if att_list|length == 0 %}
+                                {% if output[0] == "" %}
                                     Waiting...
                                 {% else %}
+                                    {{output[0]|title}} ({{"%0.3f"|format(output[1])}})
                                 {% endif %}
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="row">
                     <div class="col-lg-6" align="center">
                         <div class="panel panel-default" align="left">
                             <div class="panel-heading">
@@ -289,7 +288,9 @@
             <div id="page-wrapper" align="center">
                 <div class="panel panel-default" style="width: 70%;">
                     <div class="panel-heading">
-                        <a href="login.html"><i class="fa fa-sign-out fa-fw"></i> Please Login First</a>
+                        <a href="register.html"><i class="fa fa-sign-out fa-fw"></i> Registration </a>
+                        <br>
+                        <a href="login.html"><i class="fa fa-sign-out fa-fw"></i> Login </a>
                     </div>
                 </div>
             </div>
