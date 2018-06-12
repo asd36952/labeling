@@ -141,4 +141,6 @@ if __name__ == "__main__":
         classifier.save(args.username)
 
         cnt += 1
+        if cnt >= 1000:
+            break
 

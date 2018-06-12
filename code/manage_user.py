@@ -373,6 +373,7 @@ class user():
         return p
 
     def run_classifier(self):
+        return
         if self.pid != -1:
             self.stop_classifier()
 
