@@ -70,9 +70,9 @@ class user():
         with open("../user/%s/pid" % name, "w") as f:
             f.write("-1")
         with open("../user/%s/model_info.pkl" % name, "wb") as f:
-            pickle.dump({"word_embedding_dim":150,
-                "position_embedding_dim":25,
-                "sentence_embedding_dim":200}, f)
+            pickle.dump({"word_embedding_dim":75,
+                "position_embedding_dim":15,
+                "sentence_embedding_dim":100}, f)
 
         os.makedirs("../user/%s/model" % name)
 
@@ -162,14 +162,34 @@ class user():
 
         print("# of data:", len(sentence))
 
+        TRAIN_START = int(0.4 * len(sentence))
         VALID_START = int(0.7 * len(sentence))
-        print(VALID_START)
+        print("Train Start:", TRAIN_START)
+        print("Valid Start:", VALID_START)
 
         util = Util(sentence[:VALID_START], "./relation_list.txt", 3, 10)
         with open("../user/%s/result/util.pkl" % (username), "wb") as f:
             pickle.dump(util, f)
 
         for idx in range(len(sentence)):
+            if idx < TRAIN_START:
+                data_type = "label"
+                data_idx = idx
+                with open("../user/%s/result/%s/%d" % (username, data_type, data_idx), "w") as f:
+                    f.write(sentence[idx])
+                    f.write("\t")
+                    f.write(entity[idx])
+                    f.write("\t")
+                    f.write(filler[idx])
+                    f.write("\t")
+                    f.write(",".join(map(str, entity_position[idx])))
+                    f.write("\t")
+                    f.write(",".join(map(str, filler_position[idx])))
+                    f.write("\t")
+                    f.write(relation[idx][4:])
+                    f.write("\t")
+                    f.write(str(1))
+
             if idx < VALID_START:
                 data_type = "train"
                 data_idx = idx
@@ -187,7 +207,7 @@ class user():
                 f.write("\t")
                 f.write(",".join(map(str, filler_position[idx])))
                 f.write("\t")
-                f.write(relation[idx])
+                f.write(relation[idx][4:])
                 f.write("\t")
                 f.write(str(1))
 
@@ -363,6 +383,7 @@ class user():
         self.pid = p.pid
 
     def stop_classifier(self):
+        return
         print(self.pid)
         if self.pid == -1:
             with open("../user/%s/pid" % self.name) as f:

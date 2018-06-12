@@ -108,8 +108,6 @@ def index():
         return render_template("index.html", user = current_user)
     else:
         instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
-        if instance_relation != "no_relation":
-            instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
         data_graph = current_user.visualize_data()
@@ -140,8 +138,6 @@ def index_post():
     current_user = get_user()
 
     instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
-    if instance_relation != "no_relation":
-        instance_relation = instance_relation[4:]
     instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
     if (request.form['labeling'] == "Yes")|(request.form['labeling'] == "No"):
@@ -152,8 +148,6 @@ def index_post():
         current_user.update(instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, label)
 
         instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
-        if instance_relation != "no_relation":
-            instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
     if current_user.pid == -1:
@@ -189,8 +183,6 @@ def index_cursor(cursor):
         return render_template("index.html", user = current_user)
     else:
         instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", cursor)
-        if instance_relation != "no_relation":
-            instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
         data_graph = current_user.visualize_data()
@@ -221,8 +213,6 @@ def index_cursor_post(cursor):
     current_user = get_user()
 
     instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
-    if instance_relation != "no_relation":
-        instance_relation = instance_relation[4:]
     instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
     if (request.form['labeling'] == "Yes")|(request.form['labeling'] == "No"):
@@ -233,8 +223,6 @@ def index_cursor_post(cursor):
         current_user.update(instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, label, cursor)
 
         instance_data, instance_entity, instance_filler, instance_entity_position, instance_filler_position, instance_relation, instance_label = current_user.load_data("train", current_user.cursor)
-        if instance_relation != "no_relation":
-            instance_relation = instance_relation[4:]
         instance_description =  description[instance_relation][1].replace("KKEYWORDD", "<span style='color:red;font-weight:bold;'>%s</span>" % instance_entity).replace("AANSWERR", "<span style='color:blue;font-weight:bold;'>%s</span>" % instance_filler)
 
     if current_user.pid == -1:

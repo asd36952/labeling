@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_argument("hidden_size", type = int, help = "The size of hidden of LSTM")
     parser.add_argument("-lr", "--learning_rate", type = float, default = 1e-4, help = "Learning Rate for train")
     parser.add_argument("-dr", "--decay_rate", type = float, default = 0.9, help = "Decay Rate for train")
-    parser.add_argument("-bs", "--batch_size", type = int, default = 200, help = "Batch Size for Train")
+    parser.add_argument("-bs", "--batch_size", type = int, default = 400, help = "Batch Size for Train")
     parser.add_argument("-tbs", "--test_batch_size", type = int, default = 1000, help = "Batch Size for Test")
     parser.add_argument("--train_from", type = int, default = -1, help = "Train from model ('-1' will be train from last epoch)")
 
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         train_filler.append(e2)
         train_entity_position.append(e1_position)
         train_filler_position.append(e2_position)
-        train_relation.append(rel[4:])
+        train_relation.append(rel)
 
     valid_sentence = []
     valid_entity = []
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         valid_filler.append(e2)
         valid_entity_position.append(e1_position)
         valid_filler_position.append(e2_position)
-        valid_relation.append(rel[4:])
+        valid_relation.append(rel)
 
     cnt = 0
     while(True):
